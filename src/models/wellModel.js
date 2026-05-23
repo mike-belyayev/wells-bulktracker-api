@@ -6,55 +6,153 @@ const WellSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
-  wellAFE: {
-    type: String,
-    required: true,
-    trim: true
-  },
   wellOwner: {
     type: String,
     required: true,
     trim: true
   },
-  wellPhases: [{
-    phaseName: {
+  waterDepth: {
+    type: String,
+    trim: true
+  },
+  airGap: {
+    type: String,
+    trim: true
+  },
+  HPWH: {
+    type: String,
+    trim: true
+  },
+  casingProfile: [{
+    index: {
+      type: Number,
+      required: true
+    },
+size: {
+  type: String,
+  trim: true
+},
+description:
+{
+  type: String,
+  trim: true
+}
+  }],
+  mudPits: [{
+    pitName: {
       type: String,
       required: true,
       trim: true
     },
-    subPhases: [{
-      subPhaseName: {
-        type: String,
-        required: true,
-        trim: true
-      },
-      items: [{
-        itemName: {
-          type: String,
-          required: true,
-          trim: true
-        },
-        itemQuantity: {
-          type: String,
-          trim: true
-        },
-        itemDescription: {
-          type: String,
-          trim: true
-        },
-        itemLocation: {
-          type: String,
-          trim: true
-        },
-        itemState: {
-          type: String,  // No enum - UI can provide any state dynamically
-          trim: true
-        }
-      }]
-    }]
-  }]
+    pitGroup: {
+      type: String,
+      trim: true
+    },
+    fluid: {
+      type: String,
+      trim: true
+    },
+    ppg: {
+      type: String,
+      trim: true
+    },
+    vol: {
+      type: String,
+      trim: true
+    }
+  }],
+  bopSystems: [{
+    System: {
+      type: String,
+      trim: true
+    },
+    testDate: {
+      type: Date,
+      trim: true
+    },
+    nextDate: {
+      type: Date,
+      trim: true
+    },
+  }],
+  mudPumpLiners: [{
+    pump: {
+      type: String,
+      trim: true
+    },
+    liner: {
+      type: String,
+      trim: true
+    },
+    galStk: {
+      type: String,
+      trim: true
+    },
+    bblStk: {
+      type: String,
+      trim: true
+    },
+  }],
+  cargoVessels: [{
+    vesselName: {
+      type: String,
+      trim: true
+    },
+    arrivalDate: {
+      type: Date,
+      trim: true
+    },
+    cargoDetails: [{
+      type: String,
+      trim: true
+    }],
+  }],
+  supplyVessels: [{
+    vesselName: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    location: {
+      type: String,
+      trim: true
+    },
+    crewChange: {
+      type: Date
+    },
+    // Known fields
+    fuelOil: {
+      type: String,
+      trim: true
+    },
+    potWater: {
+      type: String,
+      trim: true
+    },
+    drlWater: {
+      type: String,
+      trim: true
+    },
+    barite: {
+      type: String,
+      trim: true
+    },
+    baseOil: {
+      type: String,
+      trim: true
+    },
+    cementG: {
+      type: String,
+      trim: true
+    },
+    // For unknown/optional fields - allows ANY additional fields
+    additionalFields: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {}
+    }
+  }],
 }, {
-  timestamps: true // Adds createdAt and updatedAt automatically
+  timestamps: true
 });
 
 module.exports = mongoose.model('Well', WellSchema);
