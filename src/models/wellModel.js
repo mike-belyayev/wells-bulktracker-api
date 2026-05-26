@@ -47,7 +47,11 @@ description:
     pitGroup: {
       type: String,
       trim: true
-    }, values: [{
+    },   order: {
+    type: Number,
+    default: 0
+  },
+  values: [{
         valueName: {
           type: String,
           trim: true
