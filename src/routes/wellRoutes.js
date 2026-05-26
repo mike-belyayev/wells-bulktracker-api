@@ -185,62 +185,55 @@ router.post('/', async (req, res) => {
   }
 });
 
+// Add this to your wellRoutes.js
+
 // @route   POST /api/wells/:id/clone
-// @desc    Clone an existing well with all its data
+// @desc    Clone a well with new name suffix and clean data
 router.post('/:id/clone', async (req, res) => {
   try {
     await dbConnect();
     
-    const originalWell = await Well.findById(req.params.id)
-      .maxTimeMS(10000);
-    
+    const originalWell = await Well.findById(req.params.id);
     if (!originalWell) {
-      return res.status(404).json({ 
-        error: 'Not found',
-        message: 'Original well not found' 
-      });
+      return res.status(404).json({ error: 'Well not found' });
     }
 
-    const cloneName = `Clone of: ${originalWell.wellName}`;
+    // Create clone name
+    const cloneName = `${originalWell.wellName} - Clone`;
     
     // Check if clone name already exists
-    const existingWell = await Well.findOne({ wellName: cloneName });
-    if (existingWell) {
-      return res.status(409).json({ 
-        error: 'Duplicate key error',
-        message: 'A well with this clone name already exists' 
-      });
+    let finalCloneName = cloneName;
+    let counter = 1;
+    while (await Well.findOne({ wellName: finalCloneName })) {
+      counter++;
+      finalCloneName = `${originalWell.wellName} - Clone ${counter}`;
     }
 
-    // Deep clone the well document
-    const wellData = originalWell.toObject();
-    delete wellData._id;
-    delete wellData.__v;
-    delete wellData.createdAt;
-    delete wellData.updatedAt;
-    
-    wellData.wellName = cloneName;
-    
-    const clonedWell = new Well(wellData);
+    // Create new well object without cloning phases (start fresh)
+    const clonedWellData = {
+      wellName: finalCloneName,
+      wellOwner: originalWell.wellOwner,
+      waterDepth: originalWell.waterDepth,
+      airGap: originalWell.airGap,
+      HPWH: originalWell.HPWH,
+      casingProfile: originalWell.casingProfile || [],
+      mudPits: originalWell.mudPits || [],
+      bopSystems: originalWell.bopSystems || [],
+      mudPumpLiners: originalWell.mudPumpLiners || [],
+      cargoVessels: [], // Start empty
+      supplyVessels: [] // Start empty
+    };
+
+    const clonedWell = new Well(clonedWellData);
     const savedClonedWell = await clonedWell.save();
     
     console.log(`Cloned well: ${originalWell.wellName} -> ${savedClonedWell.wellName}`);
     
     res.status(201).json({
       message: 'Well cloned successfully',
-      originalWell: {
-        id: originalWell._id,
-        name: originalWell.wellName
-      },
       clonedWell: savedClonedWell
     });
   } catch (err) {
-    if (err.name === 'CastError') {
-      return res.status(400).json({ 
-        error: 'Invalid ID format',
-        message: 'The provided well ID is invalid' 
-      });
-    }
     handleError(res, err, 'Failed to clone well');
   }
 });
