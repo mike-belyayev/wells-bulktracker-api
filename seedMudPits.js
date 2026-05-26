@@ -4,7 +4,7 @@
 const mongoose = require('mongoose');
 const Well = require('./src/models/wellModel');
 
-const MONGODB_URI = 'mongodb+srv://4xgood:JD2yZa10wYxcXY5o@4xgood.mayyf.mongodb.net/wells-bulktracker?retryWrites=true&w=majority&appName=4xgood';
+const MONGODB_URI = '****';
 
 const defaultMudPits = [
   { pitName: "Active 1", pitGroup: "Active", order: 0, values: [
