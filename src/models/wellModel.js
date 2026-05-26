@@ -47,19 +47,17 @@ description:
     pitGroup: {
       type: String,
       trim: true
-    },
-    fluid: {
-      type: String,
-      trim: true
-    },
-    ppg: {
-      type: String,
-      trim: true
-    },
-    vol: {
-      type: String,
-      trim: true
-    }
+    }, values: [{
+        valueName: {
+          type: String,
+          trim: true
+        },
+        value: {
+          type: String,
+          trim: true
+        }
+    }],
+
   }],
   bopSystems: [{
     System: {
