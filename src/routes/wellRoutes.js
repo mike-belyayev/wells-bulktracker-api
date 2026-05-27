@@ -146,7 +146,6 @@ router.post('/', async (req, res) => {
       cargoVessels, supplyVessels 
     } = req.body;
 
-    // Validate required fields
     if (!wellName?.trim()) {
       return res.status(400).json({ 
         error: 'Validation failed',
@@ -161,14 +160,19 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Create new well with all fields
+    // Ensure casingProfile has indexes
+    const processedCasingProfile = (casingProfile || []).map((profile, idx) => ({
+      ...profile,
+      index: profile.index !== undefined ? profile.index : idx
+    }));
+
     const well = new Well({
       wellName: wellName.trim(),
       wellOwner: wellOwner.trim(),
       waterDepth: waterDepth || '',
       airGap: airGap || '',
       HPWH: HPWH || '',
-      casingProfile: casingProfile || [],
+      casingProfile: processedCasingProfile,
       mudPits: mudPits || [],
       bopSystems: bopSystems || [],
       mudPumpLiners: mudPumpLiners || [],
@@ -184,8 +188,6 @@ router.post('/', async (req, res) => {
     handleError(res, err, 'Failed to create well');
   }
 });
-
-// Add this to your wellRoutes.js
 
 // @route   POST /api/wells/:id/clone
 // @desc    Clone a well with new name suffix and clean data
@@ -209,14 +211,26 @@ router.post('/:id/clone', async (req, res) => {
       finalCloneName = `${originalWell.wellName} - Clone ${counter}`;
     }
 
-    // Create new well object without cloning phases (start fresh)
+    // Process casingProfile to ensure indexes exist
+    let casingProfile = [];
+    if (originalWell.casingProfile && originalWell.casingProfile.length > 0) {
+      casingProfile = originalWell.casingProfile.map((profile, idx) => {
+        const profileObj = profile.toObject ? profile.toObject() : profile;
+        return {
+          ...profileObj,
+          index: profileObj.index !== undefined && profileObj.index !== null ? profileObj.index : idx
+        };
+      });
+    }
+
+    // Create new well object without cloning operational data (supplyVessels, cargoVessels)
     const clonedWellData = {
       wellName: finalCloneName,
       wellOwner: originalWell.wellOwner,
       waterDepth: originalWell.waterDepth,
       airGap: originalWell.airGap,
       HPWH: originalWell.HPWH,
-      casingProfile: originalWell.casingProfile || [],
+      casingProfile: casingProfile,
       mudPits: originalWell.mudPits || [],
       bopSystems: originalWell.bopSystems || [],
       mudPumpLiners: originalWell.mudPumpLiners || [],
@@ -234,7 +248,51 @@ router.post('/:id/clone', async (req, res) => {
       clonedWell: savedClonedWell
     });
   } catch (err) {
+    console.error('Clone error:', err);
     handleError(res, err, 'Failed to clone well');
+  }
+});
+
+// @route   POST /api/wells/fix-casing-indexes
+// @desc    Add missing index fields to casingProfile arrays (one-time fix)
+router.post('/fix-casing-indexes', async (req, res) => {
+  try {
+    await dbConnect();
+    
+    const wells = await Well.find({});
+    let updatedCount = 0;
+    let fixedWells = [];
+    
+    for (const well of wells) {
+      let needsUpdate = false;
+      
+      if (well.casingProfile && well.casingProfile.length > 0) {
+        const updatedCasingProfile = well.casingProfile.map((profile, idx) => {
+          const profileObj = profile.toObject ? profile.toObject() : profile;
+          if (profileObj.index === undefined || profileObj.index === null) {
+            needsUpdate = true;
+            return { ...profileObj, index: idx };
+          }
+          return profileObj;
+        });
+        
+        if (needsUpdate) {
+          well.casingProfile = updatedCasingProfile;
+          await well.save();
+          updatedCount++;
+          fixedWells.push(well.wellName);
+        }
+      }
+    }
+    
+    res.json({
+      message: 'Casing profile indexes fixed',
+      updatedCount,
+      fixedWells
+    });
+  } catch (err) {
+    console.error('Error fixing casing indexes:', err);
+    handleError(res, err, 'Failed to fix casing indexes');
   }
 });
 
@@ -329,7 +387,15 @@ router.patch('/:id', async (req, res) => {
 router.patch('/:id/casing-profile', async (req, res) => {
   try {
     await dbConnect();
-    const { casingProfile } = req.body;
+    let { casingProfile } = req.body;
+    
+    // Ensure indexes are set
+    if (casingProfile && Array.isArray(casingProfile)) {
+      casingProfile = casingProfile.map((profile, idx) => ({
+        ...profile,
+        index: profile.index !== undefined ? profile.index : idx
+      }));
+    }
     
     const updatedWell = await Well.findByIdAndUpdate(
       req.params.id,
