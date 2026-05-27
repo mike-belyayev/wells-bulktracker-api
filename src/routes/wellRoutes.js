@@ -189,8 +189,10 @@ router.post('/', async (req, res) => {
   }
 });
 
+// routes/wellRoutes.js - Updated clone endpoint
+
 // @route   POST /api/wells/:id/clone
-// @desc    Clone a well with new name suffix and clean data
+// @desc    Clone a well with new name suffix
 router.post('/:id/clone', async (req, res) => {
   try {
     await dbConnect();
@@ -223,7 +225,27 @@ router.post('/:id/clone', async (req, res) => {
       });
     }
 
-    // Create new well object without cloning operational data (supplyVessels, cargoVessels)
+    // Process supplyVessels - remove _id to let MongoDB create new ones
+    let supplyVessels = [];
+    if (originalWell.supplyVessels && originalWell.supplyVessels.length > 0) {
+      supplyVessels = originalWell.supplyVessels.map(vessel => {
+        const vesselObj = vessel.toObject ? vessel.toObject() : vessel;
+        delete vesselObj._id;
+        return vesselObj;
+      });
+    }
+
+    // Process cargoVessels - remove _id to let MongoDB create new ones
+    let cargoVessels = [];
+    if (originalWell.cargoVessels && originalWell.cargoVessels.length > 0) {
+      cargoVessels = originalWell.cargoVessels.map(vessel => {
+        const vesselObj = vessel.toObject ? vessel.toObject() : vessel;
+        delete vesselObj._id;
+        return vesselObj;
+      });
+    }
+
+    // Create new well object
     const clonedWellData = {
       wellName: finalCloneName,
       wellOwner: originalWell.wellOwner,
@@ -234,14 +256,16 @@ router.post('/:id/clone', async (req, res) => {
       mudPits: originalWell.mudPits || [],
       bopSystems: originalWell.bopSystems || [],
       mudPumpLiners: originalWell.mudPumpLiners || [],
-      cargoVessels: [], // Start empty
-      supplyVessels: [] // Start empty
+      cargoVessels: cargoVessels,  // Clone cargo vessels
+      supplyVessels: supplyVessels  // Clone supply vessels
     };
 
     const clonedWell = new Well(clonedWellData);
     const savedClonedWell = await clonedWell.save();
     
     console.log(`Cloned well: ${originalWell.wellName} -> ${savedClonedWell.wellName}`);
+    console.log(`  - Copied ${supplyVessels.length} supply vessels`);
+    console.log(`  - Copied ${cargoVessels.length} cargo vessels`);
     
     res.status(201).json({
       message: 'Well cloned successfully',
