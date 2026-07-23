@@ -81,6 +81,10 @@ type:
       type: Date,
       trim: true
     },
+    testPeriod: {
+      type: String,
+      trim: true
+    },
   }],
   mudPumpLiners: [{
     pump: {
