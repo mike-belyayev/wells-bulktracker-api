@@ -174,7 +174,7 @@ router.post('/', async (req, res) => {
       HPWH: HPWH || '',
       casingProfile: processedCasingProfile,
       mudPits: mudPits || [],
-      bopSystems: bopSystems || [],
+      bopSystems: bopSystems || [], // testPeriod will be handled automatically
       mudPumpLiners: mudPumpLiners || [],
       cargoVessels: cargoVessels || [],
       supplyVessels: supplyVessels || []
@@ -188,8 +188,6 @@ router.post('/', async (req, res) => {
     handleError(res, err, 'Failed to create well');
   }
 });
-
-// routes/wellRoutes.js - Updated clone endpoint
 
 // @route   POST /api/wells/:id/clone
 // @desc    Clone a well with new name suffix
@@ -225,7 +223,37 @@ router.post('/:id/clone', async (req, res) => {
       });
     }
 
-    // Process supplyVessels - remove _id to let MongoDB create new ones
+    // Process bopSystems - remove _id and preserve testPeriod
+    let bopSystems = [];
+    if (originalWell.bopSystems && originalWell.bopSystems.length > 0) {
+      bopSystems = originalWell.bopSystems.map(system => {
+        const systemObj = system.toObject ? system.toObject() : system;
+        delete systemObj._id;
+        return systemObj; // testPeriod is included automatically
+      });
+    }
+
+    // Process mudPumpLiners - remove _id
+    let mudPumpLiners = [];
+    if (originalWell.mudPumpLiners && originalWell.mudPumpLiners.length > 0) {
+      mudPumpLiners = originalWell.mudPumpLiners.map(liner => {
+        const linerObj = liner.toObject ? liner.toObject() : liner;
+        delete linerObj._id;
+        return linerObj;
+      });
+    }
+
+    // Process mudPits - remove _id
+    let mudPits = [];
+    if (originalWell.mudPits && originalWell.mudPits.length > 0) {
+      mudPits = originalWell.mudPits.map(pit => {
+        const pitObj = pit.toObject ? pit.toObject() : pit;
+        delete pitObj._id;
+        return pitObj;
+      });
+    }
+
+    // Process supplyVessels - remove _id
     let supplyVessels = [];
     if (originalWell.supplyVessels && originalWell.supplyVessels.length > 0) {
       supplyVessels = originalWell.supplyVessels.map(vessel => {
@@ -235,7 +263,7 @@ router.post('/:id/clone', async (req, res) => {
       });
     }
 
-    // Process cargoVessels - remove _id to let MongoDB create new ones
+    // Process cargoVessels - remove _id
     let cargoVessels = [];
     if (originalWell.cargoVessels && originalWell.cargoVessels.length > 0) {
       cargoVessels = originalWell.cargoVessels.map(vessel => {
@@ -253,17 +281,19 @@ router.post('/:id/clone', async (req, res) => {
       airGap: originalWell.airGap,
       HPWH: originalWell.HPWH,
       casingProfile: casingProfile,
-      mudPits: originalWell.mudPits || [],
-      bopSystems: originalWell.bopSystems || [],
-      mudPumpLiners: originalWell.mudPumpLiners || [],
-      cargoVessels: cargoVessels,  // Clone cargo vessels
-      supplyVessels: supplyVessels  // Clone supply vessels
+      mudPits: mudPits,
+      bopSystems: bopSystems, // Cloned with testPeriod
+      mudPumpLiners: mudPumpLiners,
+      cargoVessels: cargoVessels,
+      supplyVessels: supplyVessels
     };
 
     const clonedWell = new Well(clonedWellData);
     const savedClonedWell = await clonedWell.save();
     
     console.log(`Cloned well: ${originalWell.wellName} -> ${savedClonedWell.wellName}`);
+    console.log(`  - Copied ${bopSystems.length} BOP systems`);
+    console.log(`  - Copied ${mudPumpLiners.length} mud pump liners`);
     console.log(`  - Copied ${supplyVessels.length} supply vessels`);
     console.log(`  - Copied ${cargoVessels.length} cargo vessels`);
     
@@ -437,6 +467,8 @@ router.patch('/:id/casing-profile', async (req, res) => {
   }
 });
 
+// ==================== MUD PIT ROUTES ====================
+
 // @route   POST /api/wells/:id/mud-pits
 // @desc    Add a mud pit
 router.post('/:id/mud-pits', async (req, res) => {
@@ -502,6 +534,190 @@ router.delete('/:id/mud-pits/:pitIndex', async (req, res) => {
     handleError(res, err, 'Failed to delete mud pit');
   }
 });
+
+// ==================== BOP SYSTEM ROUTES ====================
+
+// @route   POST /api/wells/:id/bop-systems
+// @desc    Add a BOP system
+router.post('/:id/bop-systems', async (req, res) => {
+  try {
+    await dbConnect();
+    const bopSystem = req.body;
+    
+    const updatedWell = await Well.findByIdAndUpdate(
+      req.params.id,
+      { $push: { bopSystems: bopSystem } },
+      { new: true, maxTimeMS: 10000 }
+    );
+    
+    if (!updatedWell) {
+      return res.status(404).json({ error: 'Well not found' });
+    }
+    
+    res.json(updatedWell);
+  } catch (err) {
+    handleError(res, err, 'Failed to add BOP system');
+  }
+});
+
+// @route   PUT /api/wells/:id/bop-systems/:systemIndex
+// @desc    Update a specific BOP system
+router.put('/:id/bop-systems/:systemIndex', async (req, res) => {
+  try {
+    await dbConnect();
+    const systemIndex = parseInt(req.params.systemIndex);
+    const bopSystem = req.body;
+    
+    const well = await Well.findById(req.params.id);
+    if (!well) return res.status(404).json({ error: 'Well not found' });
+    
+    if (systemIndex >= well.bopSystems.length) {
+      return res.status(404).json({ error: 'BOP system not found' });
+    }
+    
+    well.bopSystems[systemIndex] = bopSystem;
+    await well.save();
+    
+    res.json(well);
+  } catch (err) {
+    handleError(res, err, 'Failed to update BOP system');
+  }
+});
+
+// @route   DELETE /api/wells/:id/bop-systems/:systemIndex
+// @desc    Delete a BOP system
+router.delete('/:id/bop-systems/:systemIndex', async (req, res) => {
+  try {
+    await dbConnect();
+    const systemIndex = parseInt(req.params.systemIndex);
+    
+    const well = await Well.findById(req.params.id);
+    if (!well) return res.status(404).json({ error: 'Well not found' });
+    
+    well.bopSystems.splice(systemIndex, 1);
+    await well.save();
+    
+    res.json(well);
+  } catch (err) {
+    handleError(res, err, 'Failed to delete BOP system');
+  }
+});
+
+// @route   PUT /api/wells/:id/bop-systems
+// @desc    Update all BOP systems (bulk update)
+router.put('/:id/bop-systems', async (req, res) => {
+  try {
+    await dbConnect();
+    const { bopSystems } = req.body;
+    
+    const updatedWell = await Well.findByIdAndUpdate(
+      req.params.id,
+      { $set: { bopSystems } },
+      { new: true, maxTimeMS: 10000 }
+    );
+    
+    if (!updatedWell) {
+      return res.status(404).json({ error: 'Well not found' });
+    }
+    
+    res.json(updatedWell);
+  } catch (err) {
+    handleError(res, err, 'Failed to update BOP systems');
+  }
+});
+
+// ==================== MUD PUMP LINER ROUTES ====================
+
+// @route   POST /api/wells/:id/mud-pump-liners
+// @desc    Add a mud pump liner
+router.post('/:id/mud-pump-liners', async (req, res) => {
+  try {
+    await dbConnect();
+    const mudPumpLiner = req.body;
+    
+    const updatedWell = await Well.findByIdAndUpdate(
+      req.params.id,
+      { $push: { mudPumpLiners: mudPumpLiner } },
+      { new: true, maxTimeMS: 10000 }
+    );
+    
+    if (!updatedWell) {
+      return res.status(404).json({ error: 'Well not found' });
+    }
+    
+    res.json(updatedWell);
+  } catch (err) {
+    handleError(res, err, 'Failed to add mud pump liner');
+  }
+});
+
+// @route   PUT /api/wells/:id/mud-pump-liners/:linerIndex
+// @desc    Update a specific mud pump liner
+router.put('/:id/mud-pump-liners/:linerIndex', async (req, res) => {
+  try {
+    await dbConnect();
+    const linerIndex = parseInt(req.params.linerIndex);
+    const mudPumpLiner = req.body;
+    
+    const well = await Well.findById(req.params.id);
+    if (!well) return res.status(404).json({ error: 'Well not found' });
+    
+    if (linerIndex >= well.mudPumpLiners.length) {
+      return res.status(404).json({ error: 'Mud pump liner not found' });
+    }
+    
+    well.mudPumpLiners[linerIndex] = mudPumpLiner;
+    await well.save();
+    
+    res.json(well);
+  } catch (err) {
+    handleError(res, err, 'Failed to update mud pump liner');
+  }
+});
+
+// @route   DELETE /api/wells/:id/mud-pump-liners/:linerIndex
+// @desc    Delete a mud pump liner
+router.delete('/:id/mud-pump-liners/:linerIndex', async (req, res) => {
+  try {
+    await dbConnect();
+    const linerIndex = parseInt(req.params.linerIndex);
+    
+    const well = await Well.findById(req.params.id);
+    if (!well) return res.status(404).json({ error: 'Well not found' });
+    
+    well.mudPumpLiners.splice(linerIndex, 1);
+    await well.save();
+    
+    res.json(well);
+  } catch (err) {
+    handleError(res, err, 'Failed to delete mud pump liner');
+  }
+});
+
+// @route   PUT /api/wells/:id/mud-pump-liners
+// @desc    Update all mud pump liners (bulk update)
+router.put('/:id/mud-pump-liners', async (req, res) => {
+  try {
+    await dbConnect();
+    const { mudPumpLiners } = req.body;
+    
+    const updatedWell = await Well.findByIdAndUpdate(
+      req.params.id,
+      { $set: { mudPumpLiners } },
+      { new: true, maxTimeMS: 10000 }
+    );
+    
+    if (!updatedWell) {
+      return res.status(404).json({ error: 'Well not found' });
+    }
+    
+    res.json(updatedWell);
+  } catch (err) {
+    handleError(res, err, 'Failed to update mud pump liners');
+  }
+});
+
+// ==================== SUPPLY VESSEL ROUTES ====================
 
 // @route   POST /api/wells/:id/supply-vessels
 // @desc    Add a supply vessel
@@ -569,6 +785,8 @@ router.delete('/:id/supply-vessels/:vesselIndex', async (req, res) => {
   }
 });
 
+// ==================== CARGO VESSEL ROUTES ====================
+
 // @route   POST /api/wells/:id/cargo-vessels
 // @desc    Add a cargo vessel
 router.post('/:id/cargo-vessels', async (req, res) => {
@@ -632,52 +850,6 @@ router.delete('/:id/cargo-vessels/:vesselIndex', async (req, res) => {
     res.json(well);
   } catch (err) {
     handleError(res, err, 'Failed to delete cargo vessel');
-  }
-});
-
-// @route   PUT /api/wells/:id/bop-systems
-// @desc    Update all BOP systems
-router.put('/:id/bop-systems', async (req, res) => {
-  try {
-    await dbConnect();
-    const { bopSystems } = req.body;
-    
-    const updatedWell = await Well.findByIdAndUpdate(
-      req.params.id,
-      { $set: { bopSystems } },
-      { new: true, maxTimeMS: 10000 }
-    );
-    
-    if (!updatedWell) {
-      return res.status(404).json({ error: 'Well not found' });
-    }
-    
-    res.json(updatedWell);
-  } catch (err) {
-    handleError(res, err, 'Failed to update BOP systems');
-  }
-});
-
-// @route   PUT /api/wells/:id/mud-pump-liners
-// @desc    Update all mud pump liners
-router.put('/:id/mud-pump-liners', async (req, res) => {
-  try {
-    await dbConnect();
-    const { mudPumpLiners } = req.body;
-    
-    const updatedWell = await Well.findByIdAndUpdate(
-      req.params.id,
-      { $set: { mudPumpLiners } },
-      { new: true, maxTimeMS: 10000 }
-    );
-    
-    if (!updatedWell) {
-      return res.status(404).json({ error: 'Well not found' });
-    }
-    
-    res.json(updatedWell);
-  } catch (err) {
-    handleError(res, err, 'Failed to update mud pump liners');
   }
 });
 
